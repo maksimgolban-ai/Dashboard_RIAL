@@ -824,21 +824,50 @@ function renderPlavkiTable(months,labels){
 }
 
 // =================== APPS SCRIPT LOAD ===================
-async function loadFromAppsScript(){
-  const url=document.getElementById('appsScriptUrl').value.trim();
-  const st=document.getElementById('scriptStatus');
-  if(!url){setStatus(st,'err','Введите URL Apps Script');return;}
-  setStatus(st,'info','⏳ Загрузка данных...');
+async function loadFromLsScript(retryCount = 0){
+  const url = document.getElementById('lsScriptUrl').value.trim();
+  if(!url){setLsScriptStatus('Введите URL','err');return;}
+  
+  // Увеличиваем таймаут до 60 секунд для GitHub
+  const TIMEOUT = 60000; // 60 секунд
+  const MAX_RETRIES = 2;
+  
+  setLsScriptStatus('⏳ Загрузка данных из Google Drive (может занять до 60 секунд)...','info');
+  
   try{
-    const r=await fetch(url);
-    if(!r.ok)throw new Error(`HTTP ${r.status}`);
-    const data=await r.json();
-    if(!data.months)throw new Error('Неверный формат данных');
-    initData(data);
-    setStatus(st,'ok',`✓ Данные загружены. Актуальность: ${data.file_date}`);
-  }catch(e){setStatus(st,'err','✗ Ошибка: '+e.message);}
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
+    
+    const r = await fetch(url, {
+      signal: controller.signal,
+      mode: 'cors',
+      cache: 'no-cache'
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    if(!data.months) throw new Error('Неверный формат данных');
+    
+    try{localStorage.setItem('rial_appsscript_url',url);}catch(e){}
+    setLsScriptStatus('✓ Данные загружены: '+data.file_date,'ok');
+    setTimeout(()=>initData(data),300);
+    
+  } catch(e) {
+    if(e.name === 'AbortError') {
+      if(retryCount < MAX_RETRIES) {
+        setLsScriptStatus(`⏳ Превышено время ожидания. Повторная попытка ${retryCount + 1} из ${MAX_RETRIES}...`, 'info');
+        setTimeout(() => loadFromLsScript(retryCount + 1), 1000);
+      } else {
+        setLsScriptStatus('✗ Ошибка: превышено время ожидания ответа от сервера. Проверьте URL и настройки CORS.', 'err');
+      }
+    } else {
+      setLsScriptStatus('✗ Ошибка: '+e.message, 'err');
+    }
+  }
 }
-function saveAppsScriptUrl(){
+  function saveAppsScriptUrl(){
   const url=document.getElementById('appsScriptUrl').value.trim();
   try{localStorage.setItem('rial_appsscript_url',url);}catch(e){}
   const st=document.getElementById('scriptStatus');
