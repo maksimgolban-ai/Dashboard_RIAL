@@ -464,6 +464,7 @@ function fetchTimeout(url, ms) {
 // =================== GLOBAL STATE ===================
 // =================== GLOBAL STATE ===================
 let RAW = null;
+let APPSSCRIPT_URL = null; // URL хранится в памяти (не в localStorage)
 let ALL_MONTHS = [], ALL_DATES = [], DATE_MAP = {}, MONTH_DATES = {}, LATEST_DATE = null;
 let PARAMS = {normMonth:1700,normDay:60,normKvg:86,normUgar:0.4,normShlak:5,normPerv:30};
 let trendRange = {start:null,end:null,selecting:false};
@@ -663,7 +664,7 @@ function renderDailyHTML(d,dateStr){
     <td>${fmtNum(dd.shlak_kg)}</td><td>${fmtDec(dd.shlak_pct)}%</td>
     <td style="color:var(--accent3);font-weight:600">${fmtDec(dd.kvg)}%</td>
   </tr>`;}
-  if(diams.length>1)rows+=`<tr class="tot">
+  if(diams.length>=1)rows+=`<tr class="tot">
     <td>ИТОГО</td><td>${t.plavki}</td><td>${t.good}</td>
     <td>${fmtNum(t.zav_kg)}</td>
     <td style="color:var(--accent2)">${fmtNum(t.torts_kg)}</td>
@@ -687,7 +688,8 @@ function renderDailyHTML(d,dateStr){
   <div class="two-col">
     <div class="col-block"><div class="col-title">Вход / Выход</div><div class="inner-metrics">
       <div class="im"><div class="lbl">Завалено, кг</div><div class="val a">${fmtNum(t.zav_kg)}</div></div>
-      <div class="im"><div class="lbl">Торцовано, кг</div><div class="val g">${fmtNum(t.torts_kg)}</div></div>
+      <div class="im"><div class="lbl">Торцовано, кг</div><div class="val" style="color:var(--accent2)">${fmtNum(t.torts_kg)}</div></div>
+      <div class="im"><div class="lbl">Гомогенизировано, кг</div><div class="val g">${fmtNum(t.gom_kg||0)}</div></div>
       <div class="im"><div class="lbl">Выпуск, т</div><div class="val b">${(t.torts_kg/1000).toFixed(2)}</div></div>
       <div class="im"><div class="lbl">КВГ</div><div class="val g">${fmtDec(t.kvg)}%</div></div>
     </div></div>
@@ -801,12 +803,13 @@ function processXlsx(arrayBuffer){
     группа:     String(r['Группа']||'').trim(),
     // 'Плавка забракована'='Да' → брак (новое поле)
     // Совместимость со старым полем 'Плавка без брака' где 'Нет' = бракованная
+    // Плавка забракована='Да' → брак (новый файл)
+    // Плавка без брака='Нет' → брак (старый файл, обратная совместимость)
     забракована: (function(){
       var v=r['Плавка забракована'];
-      if(v!=null){var s=String(v).trim();return s==='Да'?'Да':(s==='Нет'?null:null);}
-      // Старое поле: 'Плавка без брака' = 'Нет' → бракованная
+      if(v!=null && v!==undefined && String(v).trim()==='Да') return 'Да';
       var old=r['Плавка без брака'];
-      if(old!=null){var s2=String(old).trim();return s2==='Нет'?'Да':null;}
+      if(old!=null && old!==undefined && String(old).trim()==='Нет') return 'Да';
       return null;
     })(),
     торцовка_зав: r['Торцовка завершена']?String(r['Торцовка завершена']).trim():null,
@@ -959,7 +962,7 @@ async function loadFromLsScript(){
 
 // =================== AUTO LOAD ===================
 async function tryAutoLoad(){
-  const url = (() => { try { return null; } catch(e){ return null; } })();
+  const url = APPSSCRIPT_URL || document.getElementById('appsScriptUrl')?.value?.trim() || null;
   if(url && url.startsWith('http')){
     // Show spinner during auto-load attempt
     document.getElementById('lsSpinner').style.display='flex';
@@ -981,7 +984,7 @@ async function doRefresh(){
   const btn = document.getElementById('refreshBtn');
   const icon = document.getElementById('refreshIcon');
   // Find configured URL
-  const url = (() => { try { return null; } catch(e){ return null; } })();
+  const url = APPSSCRIPT_URL || document.getElementById('appsScriptUrl')?.value?.trim() || null;
   if(!url || !url.startsWith('http')){
     // No URL saved - redirect to upload tab
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
