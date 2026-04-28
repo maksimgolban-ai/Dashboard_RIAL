@@ -243,9 +243,17 @@ input[type=number]:focus{border-color:var(--accent)}
       <div class="header-subtitle">Литейное производство алюминиевых сплавов</div>
     </div>
   </div>
-  <div class="freshness">
-    <div class="fdot"></div>
-    Актуальность данных:&nbsp;<strong id="fileDate">—</strong>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button id="refreshBtn" onclick="doRefresh()"
+      style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:6px 14px;font-size:12px;font-family:var(--mono);cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s"
+      onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">
+      <span id="refreshIcon">↻</span> Обновить
+    </button>
+    <div class="freshness">
+      <div class="fdot"></div>
+      Актуальность данных:&nbsp;<strong id="fileDate">—</strong>
+    </div>
   </div>
 </div>
 
@@ -425,6 +433,10 @@ input[type=number]:focus{border-color:var(--accent)}
 // JSONP для обхода CORS — вставляем <script>
 // =================== FETCH HELPER ===================
 // JSONP для обхода CORS: <script>
+// Очищаем все сохранённые данные при каждом открытии страницы
+try { localStorage.clear(); } catch(e) {}
+
+
 // =================== FETCH HELPER (JSONP) ===================
 function fetchTimeout(url, ms) {
   ms = ms || 120000;
@@ -460,7 +472,7 @@ const charts = {};
 
 // =================== PARAMS ===================
 function loadParams(){
-  try{const s=localStorage.getItem('rial_params4');if(s)PARAMS={...PARAMS,...JSON.parse(s)};}catch(e){}
+  try{const s=null;if(s)PARAMS={...PARAMS,...JSON.parse(s)};}catch(e){}
   document.getElementById('pNormMonth').value=PARAMS.normMonth;
   document.getElementById('pNormDay').value=PARAMS.normDay;
   document.getElementById('pNormKvg').value=PARAMS.normKvg;
@@ -475,7 +487,6 @@ function saveParams(){
   PARAMS.normUgar=parseFloat(document.getElementById('pNormUgar').value)||0.4;
   PARAMS.normShlak=parseFloat(document.getElementById('pNormShlak').value)||5;
   PARAMS.normPerv=parseFloat(document.getElementById('pNormPerv').value)||30;
-  try{localStorage.setItem('rial_params4',JSON.stringify(PARAMS));}catch(e){}
   const msg=document.getElementById('savedMsg');msg.style.display='inline';setTimeout(()=>msg.style.display='none',2000);
   if(document.getElementById('tab-trend').classList.contains('active'))renderTrendCharts();
   if(document.getElementById('tab-volume').classList.contains('active'))renderVolumeCharts();
@@ -533,7 +544,7 @@ function buildUI(){
   onMonthlyDate(LATEST_DATE);onDailyDate(LATEST_DATE);
   const sel=document.getElementById('cumMonthSel');
   if(sel){sel.innerHTML='';ALL_MONTHS.forEach(ym=>{const o=document.createElement('option');o.value=ym;o.textContent=getMonthLabelLong(ym);sel.appendChild(o);});sel.value=ALL_MONTHS[ALL_MONTHS.length-1];}
-  try{const u=localStorage.getItem('rial_appsscript_url');if(u){const el=document.getElementById('appsScriptUrl');if(el)el.value=u;}}catch(e){}
+  try{const u=null;if(u){const el=document.getElementById('appsScriptUrl');if(el)el.value=u;}}catch(e){}
   buildBrakMonthNav();
 }
 
@@ -644,8 +655,22 @@ function onDailyDate(dateStr){
 function renderDailyHTML(d,dateStr){
   const t=d.total;const diams=Object.entries(d.by_diam||{});
   let rows='';
-  for(const[diam,dd]of diams){rows+=`<tr><td>${diam}</td><td>${dd.plavki}</td><td>${dd.good}</td><td>${fmtNum(dd.zav_kg)}</td><td>${fmtNum(dd.torts_kg)}</td><td>${fmtNum(dd.shlak_kg)}</td><td>${fmtDec(dd.shlak_pct)}%</td><td style="color:var(--accent3);font-weight:600">${fmtDec(dd.kvg)}%</td></tr>`;}
-  if(diams.length>1)rows+=`<tr class="tot"><td>ИТОГО</td><td>${t.plavki}</td><td>${t.good}</td><td>${fmtNum(t.zav_kg)}</td><td>${fmtNum(t.torts_kg)}</td><td>${fmtNum(t.shlak_kg)}</td><td>${fmtDec(t.shlak_pct)}%</td><td style="color:var(--accent3);font-weight:700">${fmtDec(t.kvg)}%</td></tr>`;
+  for(const[diam,dd]of diams){rows+=`<tr>
+    <td>${diam}</td><td>${dd.plavki}</td><td>${dd.good}</td>
+    <td>${fmtNum(dd.zav_kg)}</td>
+    <td style="color:var(--accent2)">${fmtNum(dd.torts_kg)}</td>
+    <td style="color:var(--accent3)">${fmtNum(dd.gom_kg||0)}</td>
+    <td>${fmtNum(dd.shlak_kg)}</td><td>${fmtDec(dd.shlak_pct)}%</td>
+    <td style="color:var(--accent3);font-weight:600">${fmtDec(dd.kvg)}%</td>
+  </tr>`;}
+  if(diams.length>1)rows+=`<tr class="tot">
+    <td>ИТОГО</td><td>${t.plavki}</td><td>${t.good}</td>
+    <td>${fmtNum(t.zav_kg)}</td>
+    <td style="color:var(--accent2)">${fmtNum(t.torts_kg)}</td>
+    <td style="color:var(--accent3)">${fmtNum(t.gom_kg||0)}</td>
+    <td>${fmtNum(t.shlak_kg)}</td><td>${fmtDec(t.shlak_pct)}%</td>
+    <td style="color:var(--accent3);font-weight:700">${fmtDec(t.kvg)}%</td>
+  </tr>`;
   return`
   <div class="sec-title">📅 Слитки — ${fmtDate(dateStr)}</div>
   <div class="plavki-row" style="max-width:380px">
@@ -655,8 +680,8 @@ function renderDailyHTML(d,dateStr){
   </div>
   <div class="sec-title">📐 По диаметрам</div>
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;overflow:hidden;margin-bottom:14px">
-    <table class="diam-table"><thead><tr><th>Диаметр</th><th>Плавок</th><th>Годных</th><th>Завалено, кг</th><th>Торцовано, кг</th><th>Шлак, кг</th><th>Шлак %</th><th>КВГ %</th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:16px">Нет данных</td></tr>'}</tbody></table>
+    <table class="diam-table"><thead><tr><th>Диаметр</th><th>Плавок</th><th>Годных</th><th>Завалено, кг</th><th>Торцовано, кг</th><th>Гомог., кг</th><th>Шлак, кг</th><th>Шлак %</th><th>КВГ %</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:16px">Нет данных</td></tr>'}</tbody></table>
   </div>
   <div class="sec-title">⚖️ Баланс за сутки</div>
   <div class="two-col">
@@ -844,9 +869,22 @@ function processXlsx(arrayBuffer){
     const ugarT=good.filter(r=>r.группа==='52. угар'&&r.движение==='Приход').reduce((s,r)=>s+r.количество,0);
     const othodyT=zavT-tortsT-ugarT-shlakT;
     const P=(a,b)=>b?Math.round(a/b*10000)/100:0;const M=v=>Math.round(v);
-    const res={total:{plavki:new Set(slit.map(r=>r.плавка)).size,good:goodSet.size,brak:new Set(slit.filter(r=>r.безБрака==='Нет').map(r=>r.плавка)).size,zav_kg:M(zavT),torts_kg:M(tortsT),shlak_kg:M(shlakT),shlak_pct:P(shlakT,zavT),ugar_kg:M(ugarT),ugar_pct:P(ugarT,zavT),othody_kg:M(othodyT),othody_pct:P(othodyT,zavT),kvg:P(tortsT,zavT)},by_diam:{}};
+    const gomT=rows.filter(r=>(r.операция==='гомогенезация'||r.операция==='гомогенизация')&&r.движение==='Приход'&&r.группа==='10. слиток готовый'&&goodSet.has(r.плавка)).reduce((s,r)=>s+r.количество,0);
+    const res={total:{plavki:allPlavki.size,good:goodSet.size,brak:brakSet.size,zav_kg:M(zavT),torts_kg:M(tortsT),gom_kg:M(gomT),shlak_kg:M(shlakT),shlak_pct:P(shlakT,zavT),ugar_kg:M(ugarT),ugar_pct:P(ugarT,zavT),othody_kg:M(othodyT),othody_pct:P(othodyT,zavT),kvg:P(tortsT,zavT)},by_diam:{}};
     const diams=[...new Set(slit.map(r=>r.диаметр).filter(Boolean))];
-    for(const d of diams){const dp=slit.filter(r=>r.диаметр===d);const gp=new Set(dp.filter(r=>r.безБрака==='Да').map(r=>r.плавка));const gd=rows.filter(r=>gp.has(r.плавка));const zd=gd.filter(r=>r.операция==='Завалка'&&r.движение==='Расход').reduce((s,r)=>s+r.количество,0);const td=rows.filter(r=>['гомогенезация','гомогенизация'].includes(r.операция)&&r.движение==='Приход'&&r.группа==='10. слиток готовый'&&gp.has(r.плавка)).reduce((s,r)=>s+r.количество,0);const sd=gd.filter(r=>r.операция==='Слив'&&r.группа==='50. шлак'&&r.движение==='Приход').reduce((s,r)=>s+r.количество,0);res.by_diam[d]={plavki:new Set(dp.map(r=>r.плавка)).size,good:gp.size,zav_kg:M(zd),torts_kg:M(td),shlak_kg:M(sd),shlak_pct:P(sd,zd),kvg:P(td,zd)};}
+    for(const d of diams){
+      const dp=slit.filter(r=>r.диаметр===d);
+      const dpPl=new Set(dp.map(r=>r.плавка));
+      // Годные: плавки диаметра d, не входящие в brakSet
+      const gp=new Set([...dpPl].filter(pl=>!brakSet.has(pl)));
+      const gd=rows.filter(r=>gp.has(r.плавка));
+      const zd=gd.filter(r=>r.операция==='Завалка'&&r.движение==='Расход').reduce((s,r)=>s+r.количество,0);
+      // Торцовано = торцовка Приход полуфабрикат (как в основном расчёте)
+      const td=rows.filter(r=>r.операция==='торцовка'&&r.движение==='Приход'&&r.группа==='11. слиток полуфабрикат'&&gp.has(r.плавка)).reduce((s,r)=>s+r.количество,0);
+      const sd=gd.filter(r=>r.операция==='Слив'&&r.группа==='50. шлак'&&r.движение==='Приход').reduce((s,r)=>s+r.количество,0);
+      const gmd=rows.filter(r=>(r.операция==='гомогенезация'||r.операция==='гомогенизация')&&r.движение==='Приход'&&r.группа==='10. слиток готовый'&&gp.has(r.плавка)).reduce((s,r)=>s+r.количество,0);
+      res.by_diam[d]={plavki:dpPl.size,good:gp.size,zav_kg:M(zd),torts_kg:M(td),gom_kg:M(gmd),shlak_kg:M(sd),shlak_pct:P(sd,zd),kvg:P(td,zd)};
+    }
     return res;
   }
   const months={};
@@ -878,7 +916,6 @@ async function loadFromAppsScript(){
     try{data=JSON.parse(text);}catch(e){throw new Error('Ответ не JSON. Проверьте деплой скрипта.');}
     if(data.error)throw new Error(data.error);
     if(!data.months)throw new Error('Неверный формат данных');
-    try{localStorage.setItem('rial_appsscript_url',url);}catch(e){}
     setStatus(st,'ok','✓ Данные загружены: '+data.file_date);
     setTimeout(()=>initData(data),300);
   }catch(e){
@@ -886,7 +923,7 @@ async function loadFromAppsScript(){
     else setStatus(st,'err','✗ '+e.message);
   }
 }
-function saveAppsScriptUrl(){const url=document.getElementById('appsScriptUrl').value.trim();try{localStorage.setItem('rial_appsscript_url',url);}catch(e){}const st=document.getElementById('scriptStatus');setStatus(st,'ok','✓ URL сохранён');setTimeout(()=>{if(st)st.style.display='none';},2000);}
+function saveAppsScriptUrl(){const url=document.getElementById('appsScriptUrl').value.trim();const st=document.getElementById('scriptStatus');setStatus(st,'ok','✓ URL сохранён');setTimeout(()=>{if(st)st.style.display='none';},2000);}
 function setStatus(el,type,msg){if(!el)return;el.style.display='block';el.className='upload-status '+type;el.textContent=msg;}
 
 // =================== LANDING JS ===================
@@ -894,7 +931,7 @@ function showLsPanel(msg){
   document.getElementById('lsSpinner').style.display='none'; /* spinner hidden by default */
   document.getElementById('lsPanel').style.display='block';
   if(msg)document.getElementById('loadMsg').textContent=msg;
-  try{const u=localStorage.getItem('rial_appsscript_url');if(u)document.getElementById('lsScriptUrl').value=u;}catch(e){}
+  try{const u=null;if(u)document.getElementById('lsScriptUrl').value=u;}catch(e){}
 }
 function setLsFileStatus(msg,ok){const el=document.getElementById('lsFileStatus');if(!el)return;el.style.display='block';el.style.color=ok?'var(--accent3)':'var(--accent4)';el.style.borderLeft='3px solid '+(ok?'var(--accent3)':'var(--accent4)');el.textContent=msg;}
 function setLsScriptStatus(msg,type){const el=document.getElementById('lsScriptStatus');if(!el)return;el.style.display='block';const c={ok:'var(--accent3)',err:'var(--accent4)',info:'var(--accent2)'}[type]||'var(--text2)';el.style.color=c;el.style.borderLeft='3px solid '+c;el.textContent=msg;}
@@ -912,7 +949,6 @@ async function loadFromLsScript(){
     try{data=JSON.parse(text);}catch(e){throw new Error('Ответ не JSON. Проверьте деплой скрипта.');}
     if(data.error)throw new Error('Скрипт вернул ошибку: '+data.error);
     if(!data.months)throw new Error('Неверный формат данных');
-    try{localStorage.setItem('rial_appsscript_url',url);}catch(e){}
     setLsScriptStatus('✓ Данные загружены: '+data.file_date,'ok');
     setTimeout(()=>initData(data),300);
   }catch(e){
@@ -923,7 +959,7 @@ async function loadFromLsScript(){
 
 // =================== AUTO LOAD ===================
 async function tryAutoLoad(){
-  const url = (() => { try { return localStorage.getItem('rial_appsscript_url'); } catch(e){ return null; } })();
+  const url = (() => { try { return null; } catch(e){ return null; } })();
   if(url && url.startsWith('http')){
     // Show spinner during auto-load attempt
     document.getElementById('lsSpinner').style.display='flex';
@@ -945,7 +981,7 @@ async function doRefresh(){
   const btn = document.getElementById('refreshBtn');
   const icon = document.getElementById('refreshIcon');
   // Find configured URL
-  const url = (() => { try { return localStorage.getItem('rial_appsscript_url'); } catch(e){ return null; } })();
+  const url = (() => { try { return null; } catch(e){ return null; } })();
   if(!url || !url.startsWith('http')){
     // No URL saved - redirect to upload tab
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
