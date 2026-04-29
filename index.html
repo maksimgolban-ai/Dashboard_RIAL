@@ -225,13 +225,7 @@ input[type=number]:focus{border-color:var(--accent)}
     <input type="file" id="initFileInput" accept=".xlsx,.json" style="display:none" onchange="handleInitFile(this)">
     <div id="lsFileStatus" style="display:none;margin-top:-6px;margin-bottom:10px;font-size:11px;font-family:var(--mono);padding:8px 12px;border-radius:8px;background:#1e2530"></div>
 
-    <!-- Help hint -->
-    <div style="font-size:11px;color:#6e7681;text-align:center;line-height:1.7;margin-top:4px">
-      Нет скрипта? <a href="https://script.google.com" target="_blank" style="color:#4fc3f7;text-decoration:none">script.google.com</a>
-      → новый проект → вставить код из <strong style="color:#e6edf3">РИАЛ_AppsScript.gs</strong>
-      → указать FILE_ID → развернуть как веб-приложение<br>
-      (доступ: <strong style="color:#e6edf3">Все, включая анонимных</strong>).
-    </div>
+
   </div>
 </div>
 
@@ -440,21 +434,74 @@ try { localStorage.clear(); } catch(e) {}
 // =================== FETCH HELPER (JSONP) ===================
 function fetchTimeout(url, ms) {
   ms = ms || 120000;
+  // Проверяем что URL начинается с https://
+  if (url && url.startsWith('http://')) {
+    url = url.replace('http://', 'https://');
+  }
   return new Promise(function(resolve, reject) {
     var cbName = "_rialCb_" + Date.now() + "_" + Math.floor(Math.random()*9999);
     var s = document.createElement("script");
+    var done = false;
     var timer = setTimeout(function() {
-      cleanup(); var err = new Error("timeout"); err.name = "AbortError"; reject(err);
+      if (done) return;
+      done = true;
+      cleanup();
+      var err = new Error("timeout");
+      err.name = "AbortError";
+      reject(err);
     }, ms);
     function cleanup() {
-      clearTimeout(timer); delete window[cbName];
+      clearTimeout(timer);
+      delete window[cbName];
       if (s.parentNode) s.parentNode.removeChild(s);
     }
     window[cbName] = function(data) {
+      if (done) return;
+      done = true;
       cleanup();
-      resolve({ ok:true, text:function(){ return Promise.resolve(JSON.stringify(data)); }, json:function(){ return Promise.resolve(data); } });
+      if (data && data.error) {
+        reject(new Error(data.error));
+        return;
+      }
+      resolve({
+        ok: true,
+        text: function() { return Promise.resolve(JSON.stringify(data)); },
+        json: function() { return Promise.resolve(data); }
+      });
     };
-    s.onerror = function() { cleanup(); reject(new Error("Failed to fetch")); };
+    s.onerror = function() {
+      if (done) return;
+      done = true;
+      cleanup();
+      // JSONP не сработал — пробуем обычный fetch() как fallback
+      fetch(url + (url.indexOf("?") >= 0 ? "&" : "?") + "noCache=" + Date.now())
+        .then(function(r) { return r.text(); })
+        .then(function(text) {
+          try {
+            var data = JSON.parse(text);
+            if (data && data.error) { reject(new Error(data.error)); return; }
+            resolve({
+              ok: true,
+              text: function() { return Promise.resolve(text); },
+              json: function() { return Promise.resolve(data); }
+            });
+          } catch(e) {
+            reject(new Error(
+              "Не удалось подключиться к Apps Script.\n" +
+              "Проверьте:\n" +
+              "1. URL заканчивается на /exec (не /dev)\n" +
+              "2. Доступ: Все, включая анонимных\n" +
+              "3. Создано новое развёртывание после изменений"
+            ));
+          }
+        })
+        .catch(function() {
+          reject(new Error(
+            "Не удалось подключиться к Apps Script.\n" +
+            "Проверьте что URL заканчивается на /exec и доступ: Все, включая анонимных."
+          ));
+        });
+    };
     var sep = url.indexOf("?") >= 0 ? "&" : "?";
     s.src = url + sep + "callback=" + cbName;
     document.head.appendChild(s);
